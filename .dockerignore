@@ -1,0 +1,13 @@
+target/
+.git/
+.github/
+.idea/
+.vscode/
+*.iml
+docs/
+k8s/
+*.md
+.env
+.env.*
+docker-compose*.yml
+Dockerfile

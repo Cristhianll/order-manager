@@ -1,0 +1,59 @@
+# Orquestacion local / entorno simulado: API + PostgreSQL
+# Uso:  cp .env.example .env && docker compose up -d --build
+name: order-manager
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-orders}
+      POSTGRES_USER: ${DB_USER:-orders}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env (ver .env.example)}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "0.50", memory: 256M }
+
+  app:
+    image: ${APP_IMAGE:-order-manager:local}
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-local}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-orders}
+      DB_USER: ${DB_USER:-orders}
+      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env (ver .env.example)}
+    ports:
+      - "${APP_PORT:-8098}:8098"
+    networks: [backend]
+    # Hardening del contenedor
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # Escalabilidad / limites de recursos
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 768M }
+        reservations: { cpus: "0.25", memory: 384M }
+
+networks:
+  backend:
+
+volumes:
+  pgdata:
