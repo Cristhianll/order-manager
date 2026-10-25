@@ -31,7 +31,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
           cache: maven
 
       # "verify" ejecuta JUnit + JaCoCo y FALLA si la cobertura de lineas < 60% (pom.xml)
@@ -70,7 +70,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
           cache: maven
 
       - name: Analizar y esperar Quality Gate
