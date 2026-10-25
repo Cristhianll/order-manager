@@ -17,10 +17,11 @@
     <name>order-manager</name>
     <description>Order Manager API - E-commerce (DOY0101)</description>
 
-    <properties>
-        <java.version>17</java.version>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
+<properties>
+    <java.version>17</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <postgresql.version>42.7.12</postgresql.version>
+</properties>
 
     <dependencies>
         <dependency>
