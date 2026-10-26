@@ -73,7 +73,7 @@ jobs:
           mvn -B verify sonar:sonar \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.organization=cristhianll \
-            -Dsonar.projectKey=1234 \
+           -Dsonar.projectKey=Cristhianll_order-manager \
             -Dsonar.qualitygate.wait=true
 
   scan-dependencies:
