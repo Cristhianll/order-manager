@@ -3,7 +3,7 @@
 Microservicio REST (Spring Boot 3.5 · Java 17 · Maven) para gestionar pedidos de un e-commerce.
 Este repositorio incluye el **pipeline CI/CD completo en GitHub Actions** de la Evaluación Parcial N°2 (DOY0101 – Ingeniería DevOps).
 
-**Integrantes:** Cristhian LLontop · [Nombre integrante 2]
+**Integrantes:** Cristhian LLontop 
 
 ## 1. Arquitectura
 
@@ -103,7 +103,7 @@ docker compose down -v
 
 ## 9. Uso de Inteligencia Artificial
 
-Se usó **Claude (Anthropic)** y **Gemini (Google)** como apoyo: explicación de comandos de SonarCloud, orientación para desarrollar el proyecto y generación de la base del pipeline y de los archivos de configuración. El equipo ejecutó el pipeline en GitHub, revisó los resultados y corrigió los errores detectados (ver bitácora en el informe).
+Se usó Gemini (Google) como apoyo: explicación de comandos de SonarCloud, orientación para desarrollar el proyecto y generación de la base del pipeline y de los archivos de configuración. El equipo ejecutó el pipeline en GitHub, revisó los resultados y corrigió los errores detectados (ver bitácora en el informe).
 
 ## 10. Conclusiones
 
@@ -112,5 +112,4 @@ Durante el desarrollo de este proyecto, mi mayor aprendizaje fue comprender que 
 
 Mi principal contribución fue la arquitectura de automatización e infraestructura: desde la configuración del pipeline CI/CD, el hardening del Dockerfile (usuario no-root, ejecuciones multi-stage) y la orquestación con Docker Compose y Kubernetes (HPA), hasta la implementación de trazabilidad directa entre el commit SHA y la API expuesta.
 
-### Reflexión de [Integrante 2]
-_(Escribir sin apoyo de IA: qué aprendió y cuál fue su contribución.)_
+
