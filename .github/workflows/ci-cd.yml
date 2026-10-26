@@ -94,9 +94,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Trivy (filesystem) - falla con HIGH/CRITICAL con parche disponible
         run: |
+          IGNORE=""
+          if [ -f .trivyignore ]; then IGNORE="--ignorefile /src/.trivyignore"; fi
           docker run --rm -v "$PWD:/src" -v "$HOME/.cache/trivy:/root/.cache" \
-            "$TRIVY_IMAGE" fs --scanners vuln,secret \
-            --ignorefile /src/.trivyignore \
+            "$TRIVY_IMAGE" fs --scanners vuln,secret $IGNORE \
             --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 /src
 
   # ------------------------------------------------------------
@@ -133,9 +134,10 @@ jobs:
 
       - name: Trivy (imagen) - bloquea con HIGH/CRITICAL
         run: |
+          IGNORE=""
+          if [ -f .trivyignore ]; then IGNORE="--ignorefile /src/.trivyignore"; fi
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$PWD:/src" -v "$HOME/.cache/trivy:/root/.cache" "$TRIVY_IMAGE" image \
-            --ignorefile /src/.trivyignore \
+            -v "$PWD:/src" -v "$HOME/.cache/trivy:/root/.cache" "$TRIVY_IMAGE" image $IGNORE \
             --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
             "${{ steps.meta.outputs.image }}:${{ github.sha }}"
 
