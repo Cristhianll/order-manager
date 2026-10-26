@@ -1,0 +1,10 @@
+# Excepciones de seguridad documentadas (Trivy)
+#
+# spring-webmvc 6.2.x (Spring Boot 3.5.15): la correccion solo existe en Spring Framework 7.x
+# (requiere migrar a Spring Boot 4). Ambas vulnerabilidades afectan funciones que esta API
+# REST/JSON no utiliza:
+#   - CVE-2026-47884: XsltView (vistas XSLT)
+#   - CVE-2026-47890: Server-Sent Events con vistas
+# Revisar nuevamente si se migra a Spring Boot 4.
+CVE-2026-47884
+CVE-2026-47890

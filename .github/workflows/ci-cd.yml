@@ -7,7 +7,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-
+# Principio de minimo privilegio: cada job pide solo lo que necesita
 permissions:
   contents: read
 
@@ -19,7 +19,9 @@ env:
   TRIVY_IMAGE: aquasec/trivy:0.58.1
 
 jobs:
-
+  # ------------------------------------------------------------
+  # 1) Build + pruebas unitarias + cobertura minima (IE2)
+  # ------------------------------------------------------------
   test:
     name: Build y pruebas unitarias
     runs-on: ubuntu-latest
@@ -32,6 +34,7 @@ jobs:
           java-version: '21'
           cache: maven
 
+      # "verify" ejecuta JUnit + JaCoCo y FALLA si la cobertura de lineas < 60% (pom.xml)
       - name: Ejecutar pruebas y verificar cobertura
         run: mvn -B verify
 
@@ -52,13 +55,17 @@ jobs:
             target/surefire-reports/
             target/site/jacoco/
 
+  # ------------------------------------------------------------
+  # 2) Analisis estatico de codigo con SonarCloud (IE3)
+  #    Bloquea el pipeline si no pasa el Quality Gate
+  # ------------------------------------------------------------
   sonar:
     name: Análisis de código (SonarCloud)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   
+          fetch-depth: 0   # Sonar necesita el historial completo
 
       - uses: actions/setup-java@v4
         with:
@@ -73,9 +80,13 @@ jobs:
           mvn -B verify sonar:sonar \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.organization=cristhianll \
-           -Dsonar.projectKey=Cristhianll_order-manager \
+            -Dsonar.projectKey=Cristhianll_order-manager \
             -Dsonar.qualitygate.wait=true
 
+  # ------------------------------------------------------------
+  # 3) Escaneo de dependencias y secretos con Trivy (IE3)
+  #    Dependabot (dependabot.yml) complementa con PRs automaticos
+  # ------------------------------------------------------------
   scan-dependencies:
     name: Escaneo de dependencias y secretos
     runs-on: ubuntu-latest
@@ -85,11 +96,15 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/src" -v "$HOME/.cache/trivy:/root/.cache" \
             "$TRIVY_IMAGE" fs --scanners vuln,secret \
+            --ignorefile /src/.trivyignore \
             --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 /src
 
+  # ------------------------------------------------------------
+  # 4) Construccion de imagen Docker + escaneo de la imagen + push (IE1, IE3)
+  # ------------------------------------------------------------
   docker:
     name: Imagen Docker
-    needs: [test, sonar, scan-dependencies]   
+    needs: [test, sonar, scan-dependencies]   # solo se construye si TODO lo anterior pasa
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -119,7 +134,8 @@ jobs:
       - name: Trivy (imagen) - bloquea con HIGH/CRITICAL
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$HOME/.cache/trivy:/root/.cache" "$TRIVY_IMAGE" image \
+            -v "$PWD:/src" -v "$HOME/.cache/trivy:/root/.cache" "$TRIVY_IMAGE" image \
+            --ignorefile /src/.trivyignore \
             --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
             "${{ steps.meta.outputs.image }}:${{ github.sha }}"
 
@@ -131,6 +147,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Trazabilidad: la imagen se etiqueta con el SHA exacto del commit
       - name: Publicar imagen
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
@@ -145,6 +162,9 @@ jobs:
             BUILD_DATE=${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
           cache-from: type=gha
 
+  # ------------------------------------------------------------
+  # 5) Despliegue automatico en entorno simulado (Docker Compose) (IE4, IE5)
+  # ------------------------------------------------------------
   deploy:
     name: Despliegue (Docker Compose)
     needs: [docker]
@@ -166,7 +186,9 @@ jobs:
       - name: Desplegar imagen del commit
         run: |
           APP_IMAGE="${{ needs.docker.outputs.image }}:${{ github.sha }}"
+          # Credencial efimera generada en cada despliegue (no hay secretos en el repo)
           DB_PASSWORD="$(openssl rand -hex 16)"
+          # Disponibles para los pasos siguientes (logs / down)
           {
             echo "APP_IMAGE=$APP_IMAGE"
             echo "GIT_SHA=${{ github.sha }}"
@@ -184,6 +206,7 @@ jobs:
           curl -fsS -o /dev/null -w "POST /api/orders -> %{http_code}\n" -X POST \
             -H 'Content-Type: application/json' -d '{"customerName":"smoke-test"}' \
             http://localhost:8098/api/orders
+          # Trazabilidad: lo que corre debe ser EXACTAMENTE el commit que disparo el pipeline
           curl -fsS http://localhost:8098/actuator/info | tee info.json
           grep -q "${{ github.sha }}" info.json
 
@@ -204,7 +227,9 @@ jobs:
         if: always()
         run: docker compose down -v
 
-
+  # ------------------------------------------------------------
+  # 6) Alerta: si algo falla en main se abre un Issue automaticamente (IE3)
+  # ------------------------------------------------------------
   notify-failure:
     name: Alerta de fallo
     needs: [test, sonar, scan-dependencies, docker, deploy]
