@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: order-manager-alerts
+  labels: { release: monitoring }
+spec:
+  groups:
+    - name: order-manager
+      rules:
+        - alert: OrderManagerDown
+          expr: sum(up{job="order-manager"}) == 0
+          for: 1m
+          labels: { severity: critical }
+          annotations: { summary: "order-manager no disponible" }
+        - alert: OrderManagerHigh5xx
+          expr: sum(rate(http_server_requests_seconds_count{application="order-manager",status=~"5.."}[2m])) > 0.1
+          for: 2m
+          labels: { severity: warning }
+          annotations: { summary: "Errores 5xx sostenidos" }

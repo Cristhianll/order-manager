@@ -25,6 +25,8 @@ jobs:
   test:
     name: Build y pruebas unitarias
     runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.cov.outputs.coverage }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,9 +41,13 @@ jobs:
         run: mvn -B verify
 
       - name: Resumen de cobertura
+        id: cov
         if: always()
         run: |
           if [ -f target/site/jacoco/jacoco.csv ]; then
+            # Valor numerico para el dashboard (se envia a Pushgateway)
+            COV=$(awk -F, 'NR>1{m+=$8;c+=$9} END{printf "%.1f", 100*c/(m+c)}' target/site/jacoco/jacoco.csv)
+            echo "coverage=$COV" >> "$GITHUB_OUTPUT"
             awk -F, 'NR>1{m+=$8;c+=$9} END{printf "### Cobertura de lineas: %.1f%% (%d/%d)\n", 100*c/(m+c), c, m+c}' \
               target/site/jacoco/jacoco.csv >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -101,11 +107,22 @@ jobs:
             --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 /src
 
   # ------------------------------------------------------------
+  # 3b) Politicas de cumplimiento automatizadas (script de auditoria)
+  # ------------------------------------------------------------
+  compliance-audit:
+    name: Auditoría de cumplimiento
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ejecutar auditoria
+        run: bash scripts/audit-compliance.sh
+
+  # ------------------------------------------------------------
   # 4) Construccion de imagen Docker + escaneo de la imagen + push (IE1, IE3)
   # ------------------------------------------------------------
   docker:
     name: Imagen Docker
-    needs: [test, sonar, scan-dependencies]   # solo se construye si TODO lo anterior pasa
+    needs: [test, sonar, scan-dependencies, compliance-audit]   # solo se construye si TODO lo anterior pasa
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -169,7 +186,7 @@ jobs:
   # ------------------------------------------------------------
   deploy:
     name: Despliegue (Docker Compose)
-    needs: [docker]
+    needs: [docker, test]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: staging
@@ -178,6 +195,9 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@v4
+
+      - name: Marcar inicio del despliegue
+        run: echo "DEPLOY_START=$(date +%s)" >> "$GITHUB_ENV"
 
       - uses: docker/login-action@v3
         with:
@@ -214,12 +234,29 @@ jobs:
 
       - name: Registrar despliegue
         run: |
+          DEPLOY_SECONDS=$(( $(date +%s) - DEPLOY_START ))
+          {
+            echo "### Métricas del pipeline"
+            echo "- Duración del despliegue: ${DEPLOY_SECONDS}s"
+            echo "- Cobertura de líneas: ${{ needs.test.outputs.coverage }}%"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Metricas del pipeline en formato Prometheus (para el dashboard)
+          {
+            echo "pipeline_deploy_duration_seconds ${DEPLOY_SECONDS}"
+            echo "pipeline_test_coverage_percent ${{ needs.test.outputs.coverage }}"
+          } > pipeline-metrics.prom
           {
             echo "### Despliegue exitoso"
             echo "- Commit: \`${{ github.sha }}\`"
             echo "- Imagen: \`${{ needs.docker.outputs.image }}:${{ github.sha }}\`"
             echo "- Autor: @${{ github.actor }}"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publicar metricas del pipeline
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-metrics
+          path: pipeline-metrics.prom
 
       - name: Logs si falla
         if: failure()
@@ -234,7 +271,7 @@ jobs:
   # ------------------------------------------------------------
   notify-failure:
     name: Alerta de fallo
-    needs: [test, sonar, scan-dependencies, docker, deploy]
+    needs: [test, sonar, scan-dependencies, compliance-audit, docker, deploy]
     if: failure() && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:

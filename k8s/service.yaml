@@ -2,9 +2,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: order-manager
+  labels: { app: order-manager }
 spec:
   type: ClusterIP
   selector: { app: order-manager }
   ports:
-    - port: 80
+    - name: http
+      port: 80
       targetPort: 8098
