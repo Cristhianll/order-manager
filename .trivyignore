@@ -6,11 +6,3 @@
 #   - CVE-2026-47890: Server-Sent Events con vistas
 CVE-2026-47884
 CVE-2026-47890
-#
-# tomcat-embed-core 10.1.55: la version corregida (10.1.58) aun no esta disponible en Maven Central.
-# Las tres vulnerabilidades afectan mecanismos de autenticacion y restricciones de seguridad de
-# Tomcat (DIGEST, FORM, security constraints) que esta API no configura ni utiliza.
-# Reevaluar cuando 10.1.58 (o superior) este publicada y quitar estas excepciones.
-CVE-2026-65182
-CVE-2026-65905
-CVE-2026-68525
