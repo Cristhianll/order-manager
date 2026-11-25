@@ -1,7 +1,7 @@
 # Order Manager API
 
 Microservicio REST (Spring Boot 3.5 · Java 17 · Maven) para gestionar pedidos de un e-commerce.
-Este repositorio incluye el **pipeline CI/CD completo en GitHub Actions** de la Evaluación Parcial N°2 (DOY0101 – Ingeniería DevOps).
+Este repositorio incluye el **pipeline CI/CD completo en GitHub Actions** de la Evaluación Parcial N°2 y su extensión de observabilidad, métricas y cumplimiento de la Evaluación Parcial N°3 (DOY0101 – Ingeniería DevOps).
 
 **Integrantes:** Cristhian LLontop 
 
@@ -27,11 +27,12 @@ Entorno desplegado: `app` (API) + `db` (PostgreSQL 16) en una red interna; solo 
 | `test` | `mvn verify`: 24 pruebas JUnit 5 / Mockito / MockMvc + cobertura JaCoCo | una prueba falla o la cobertura de líneas < 60 % |
 | `sonar` | Análisis estático en SonarCloud (Java 21) | no pasa el Quality Gate |
 | `scan-dependencies` | Trivy sobre el repositorio (vulnerabilidades en `pom.xml` y secretos) | hay vulnerabilidades HIGH/CRITICAL con parche y sin excepción |
+| `compliance-audit` | Ejecuta `scripts/audit-compliance.sh` (8 políticas: secretos, usuario no-root, límites en Kubernetes, umbral de cobertura, gates activos, excepciones justificadas) | alguna política falla |
 | `docker` | Construye la imagen (multi-stage), la escanea con Trivy y, en `main`, la publica en GHCR | el escaneo de la imagen falla |
 | `deploy` | Despliega con Docker Compose en el runner (entorno simulado) y ejecuta smoke tests | el contenedor no queda *healthy* o fallan los smoke tests |
 | `notify-failure` | Abre un Issue automático con el enlace a la ejecución fallida | — (es la alerta) |
 
-`docker` depende de `test`, `sonar` y `scan-dependencies`, y `deploy` depende de `docker`: **nada llega a despliegue si una etapa de calidad o seguridad falla**.
+`docker` depende de `test`, `sonar`, `scan-dependencies` y `compliance-audit`, y `deploy` depende de `docker`: **nada llega a despliegue si una etapa de calidad o seguridad falla**.
 
 **Dependabot** (`.github/dependabot.yml`) abre PRs semanales para dependencias Maven, imagen base Docker y GitHub Actions.
 
@@ -71,7 +72,7 @@ Entorno desplegado: `app` (API) + `db` (PostgreSQL 16) en una red interna; solo 
 3. Generar un token en SonarCloud (*My Account → Security*) y guardarlo en GitHub: *Settings → Secrets and variables → Actions → Secret* `SONAR_TOKEN`.
 4. Escribir la organización y la clave del proyecto en el job `sonar` de `.github/workflows/ci-cd.yml` (`-Dsonar.organization` y `-Dsonar.projectKey`).
 5. *Settings → Code security*: activar **Dependabot alerts** y **Dependabot security updates**.
-6. *Settings → Branches*: proteger `main` exigiendo que pasen `test`, `sonar`, `scan-dependencies` y `docker` antes de hacer merge.
+6. *Settings → Branches*: proteger `main` exigiendo Pull Request con una aprobación y que pasen `test`, `sonar`, `scan-dependencies` y `compliance-audit` antes de hacer merge.
 
 El entorno `staging` se crea automáticamente en el primer despliegue.
 
@@ -103,7 +104,7 @@ docker compose down -v
 
 ## 9. Uso de Inteligencia Artificial
 
-Se usó Gemini (Google) como apoyo: explicación de comandos de SonarCloud, orientación para desarrollar el proyecto y generación de la base del pipeline y de los archivos de configuración. El equipo ejecutó el pipeline en GitHub, revisó los resultados y corrigió los errores detectados (ver bitácora en el informe).
+Se usó Gemini (Google) como apoyo: explicación de comandos de SonarCloud, orientación para desarrollar el proyecto y generación de la base del pipeline y de los archivos de configuración. El equipo ejecutó el pipeline en GitHub, revisó los resultados y corrigió los errores detectados (ver bitácora en el informe). Para la Evaluación Parcial N°3 se usó además Claude (Anthropic) como apoyo en la revisión del pipeline, borradores de scripts y manifiestos, y guía de la ejecución; todo fue ejecutado y validado por el autor.
 
 ## 10. Conclusiones
 
@@ -112,4 +113,20 @@ Durante el desarrollo de este proyecto, mi mayor aprendizaje fue comprender que 
 
 Mi principal contribución fue la arquitectura de automatización e infraestructura: desde la configuración del pipeline CI/CD, el hardening del Dockerfile (usuario no-root, ejecuciones multi-stage) y la orquestación con Docker Compose y Kubernetes (HPA), hasta la implementación de trazabilidad directa entre el commit SHA y la API expuesta.
 
+## 11. Observabilidad y cumplimiento (Evaluación Parcial N°3)
 
+| Apartado | Implementación | Dónde |
+|---|---|---|
+| Monitoreo y logs | Métricas Micrometer en `/actuator/prometheus`, Prometheus + Alertmanager + Grafana (Helm `kube-prometheus-stack`), `ServiceMonitor` y reglas de alerta propias | `k8s/monitoring/` |
+| Despliegue orquestado | Kubernetes (2 réplicas, HPA, PostgreSQL) automatizado con un script | `k8s/`, `scripts/lab-setup.sh` |
+| Dashboard | 9 paneles: disponibilidad, tiempo de despliegue, cobertura, CPU, memoria, heap JVM, peticiones HTTP, errores 5xx y errores en logs | `k8s/monitoring/dashboard.json` |
+| Métricas del pipeline | El pipeline calcula cobertura y duración del despliegue y las publica en el resumen y en el artefacto `pipeline-metrics.prom`; se envían al Pushgateway | `scripts/push-pipeline-metrics.sh` |
+| Cumplimiento | Branch protection en `main`, Quality Gate de SonarCloud, umbral de cobertura, Trivy y script de auditoría | `scripts/audit-compliance.sh`, `.trivyignore` |
+| Pipeline que se detiene | Ante una dependencia vulnerable (log4j) o un Dockerfile sin `USER`, los jobs `docker` y `deploy` no se ejecutan | `.github/workflows/ci-cd.yml` |
+
+Uso en un clúster Kubernetes (por ejemplo, un playground):
+```bash
+./scripts/lab-setup.sh <USUARIO_GITHUB> <SHA_COMMIT> <SEGUNDOS_DEPLOY> <COBERTURA>
+./scripts/generate-traffic.sh 60
+```
+El detalle, las capturas de evidencia y las limitaciones del entorno de laboratorio están en el informe de la evaluación (entregado por separado).
