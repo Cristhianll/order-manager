@@ -33,7 +33,6 @@ RUN apk upgrade --no-cache
 RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app
 WORKDIR /app
 COPY --from=build --chown=10001:10001 /workspace/target/*.jar app.jar
-USER 10001
 
 # Trazabilidad: el commit queda visible en /actuator/info
 ENV GIT_SHA=${GIT_SHA} \
